@@ -223,7 +223,7 @@
   // 游戏状态
   let snake, dir, nextDir, food, score, best, running, paused, timer, currentInterval;
   // 渲染状态
-  let particles = [], trail = [], stars = [], foodSpark = 0, shake = 0, deathFlash = 0;
+  let particles = [], trail = [], stars = [], shake = 0, deathFlash = 0;
   let lastStepAt = 0, prevHead = null;
 
   best = +localStorage.getItem('snake_best') || 0;
@@ -248,7 +248,6 @@
     score = 0;
     particles = [];
     trail = [];
-    foodSpark = 0;
     shake = 0;
     deathFlash = 0;
     prevHead = { x: snake[0].x, y: snake[0].y };
@@ -515,87 +514,97 @@
   }
 
   function drawSnake(t) {
-    if (!snake) return;
+    if (!snake || snake.length === 0) return;
     const now = performance.now();
     const prog = running && !paused ? moveProgress(now) : 1;
     const pad = Math.max(1.5, CELL * 0.08);
     const r = Math.max(3, CELL * 0.32);
 
-    // 蛇身从尾到头绘制，颜色由暗到亮
-    for (let i = snake.length - 1; i >= 0; i--) {
+    // 统一插值：每段从自己的前一段位置滑出，转弯时不闪
+    const pts = [];
+    for (let i = 0; i < snake.length; i++) {
       const s = snake[i];
-      let gx = s.x, gy = s.y;
-      // 头部插值平滑滑动
-      if (i === 0 && prevHead) {
-        gx = lerp(prevHead.x, s.x, prog);
-        gy = lerp(prevHead.y, s.y, prog);
-      } else if (i === snake.length - 1 && snake.length > 1) {
-        // 尾部从前一段位置滑出
-        const nxt = snake[i - 1];
-        gx = lerp(s.x, nxt.x, prog);
-        gy = lerp(s.y, nxt.y, prog);
-      }
-
-      const px = gx * CELL;
-      const py = gy * CELL;
-      const ratio = i / Math.max(1, snake.length - 1);
-      const fade = deathFlash > 0 && Math.floor(t / 60) % 2 === 0 ? 0.35 : 1;
-
-      // 外发光
-      ctx.shadowColor = 'rgba(74, 222, 128, 0.8)';
-      ctx.shadowBlur = i === 0 ? 18 : 10;
-
-      // 蛇身渐变
-      const g = ctx.createLinearGradient(px, py, px + CELL, py + CELL);
-      const hue = 145 + ratio * 30; // 绿到青
-      g.addColorStop(0, 'hsla(' + hue + ', 75%, ' + (60 - ratio * 25) + '%, ' + fade + ')');
-      g.addColorStop(1, 'hsla(' + (hue + 15) + ', 80%, ' + (45 - ratio * 20) + '%, ' + fade + ')');
-      ctx.fillStyle = g;
-      roundRect(px + pad, py + pad, CELL - pad * 2, CELL - pad * 2, r);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-
-      // 顶部高光
-      ctx.globalAlpha = 0.25 * fade;
-      ctx.fillStyle = '#ffffff';
-      roundRect(px + pad + 1, py + pad + 1, CELL - pad * 2 - 2, (CELL - pad * 2) * 0.35, r * 0.6);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-
-      // 蛇头：眼睛 + 脉动光晕
       if (i === 0) {
-        const ex = gx * CELL + CELL / 2;
-        const ey = gy * CELL + CELL / 2;
-        // 头部光晕
-        const hg = ctx.createRadialGradient(ex, ey, 0, ex, ey, CELL * 1.3);
-        hg.addColorStop(0, 'rgba(74, 222, 128, 0.4)');
-        hg.addColorStop(1, 'rgba(74, 222, 128, 0)');
-        ctx.fillStyle = hg;
-        ctx.beginPath();
-        ctx.arc(ex, ey, CELL * 1.3, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 眼睛
-        const off = CELL * 0.22;
-        const er = Math.max(1.2, CELL * 0.11);
-        let e1, e2;
-        if (dir.x === 1) { e1 = [ex + off, ey - off]; e2 = [ex + off, ey + off]; }
-        else if (dir.x === -1) { e1 = [ex - off, ey - off]; e2 = [ex - off, ey + off]; }
-        else if (dir.y === 1) { e1 = [ex - off, ey + off]; e2 = [ex + off, ey + off]; }
-        else { e1 = [ex - off, ey - off]; e2 = [ex + off, ey - off]; }
-        ctx.fillStyle = '#0a0e1a';
-        ctx.beginPath();
-        ctx.arc(e1[0], e1[1], er, 0, Math.PI * 2);
-        ctx.arc(e2[0], e2[1], er, 0, Math.PI * 2);
-        ctx.fill();
-        // 眼神高光
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(e1[0] + 0.6, e1[1] - 0.6, er * 0.4, 0, Math.PI * 2);
-        ctx.arc(e2[0] + 0.6, e2[1] - 0.6, er * 0.4, 0, Math.PI * 2);
-        ctx.fill();
+        pts.push({
+          x: lerp(prevHead.x, s.x, prog),
+          y: lerp(prevHead.y, s.y, prog)
+        });
+      } else {
+        const prev = snake[i - 1];
+        pts.push({
+          x: lerp(prev.x, s.x, prog),
+          y: lerp(prev.y, s.y, prog)
+        });
       }
     }
+
+    // 死亡闪烁：用平滑的 sin 而非硬切换
+    let alphaMul = 1;
+    if (deathFlash > 0) {
+      alphaMul = 0.55 + 0.45 * Math.sin(t * 0.012);
+    }
+
+    // 先整体设置发光，避免每段开关阴影导致的渲染差异
+    ctx.save();
+    ctx.shadowColor = 'rgba(74, 222, 128, 0.55)';
+    ctx.shadowBlur = 12;
+
+    // 从尾到头绘制
+    for (let i = snake.length - 1; i >= 0; i--) {
+      const p = pts[i];
+      const px = p.x * CELL;
+      const py = p.y * CELL;
+      const ratio = i / Math.max(1, snake.length - 1);
+      const hue = 150 + ratio * 25;
+      const light = 62 - ratio * 26;
+      ctx.fillStyle = 'hsla(' + hue + ', 72%, ' + light + '%, ' + alphaMul + ')';
+      roundRect(px + pad, py + pad, CELL - pad * 2, CELL - pad * 2, r);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // 顶部高光（无阴影，稳定叠加）
+    ctx.save();
+    ctx.globalAlpha = 0.22 * alphaMul;
+    ctx.fillStyle = '#ffffff';
+    for (let i = snake.length - 1; i >= 0; i--) {
+      const p = pts[i];
+      const px = p.x * CELL;
+      const py = p.y * CELL;
+      roundRect(px + pad + 1, py + pad + 1, CELL - pad * 2 - 2, (CELL - pad * 2) * 0.32, r * 0.55);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // 蛇头：稳定光晕 + 眼睛
+    const head = pts[0];
+    const ex = head.x * CELL + CELL / 2;
+    const ey = head.y * CELL + CELL / 2;
+    const hg = ctx.createRadialGradient(ex, ey, 0, ex, ey, CELL * 1.35);
+    hg.addColorStop(0, 'rgba(74, 222, 128, 0.35)');
+    hg.addColorStop(1, 'rgba(74, 222, 128, 0)');
+    ctx.fillStyle = hg;
+    ctx.beginPath();
+    ctx.arc(ex, ey, CELL * 1.35, 0, Math.PI * 2);
+    ctx.fill();
+
+    const off = CELL * 0.22;
+    const er = Math.max(1.2, CELL * 0.11);
+    let e1, e2;
+    if (dir.x === 1) { e1 = [ex + off, ey - off]; e2 = [ex + off, ey + off]; }
+    else if (dir.x === -1) { e1 = [ex - off, ey - off]; e2 = [ex - off, ey + off]; }
+    else if (dir.y === 1) { e1 = [ex - off, ey + off]; e2 = [ex + off, ey + off]; }
+    else { e1 = [ex - off, ey - off]; e2 = [ex + off, ey - off]; }
+    ctx.fillStyle = '#0a0e1a';
+    ctx.beginPath();
+    ctx.arc(e1[0], e1[1], er, 0, Math.PI * 2);
+    ctx.arc(e2[0], e2[1], er, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(e1[0] + er * 0.4, e1[1] - er * 0.4, er * 0.35, 0, Math.PI * 2);
+    ctx.arc(e2[0] + er * 0.4, e2[1] - er * 0.4, er * 0.35, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   function drawPauseMask() {
