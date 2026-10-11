@@ -218,9 +218,13 @@
   const dpad = document.getElementById('dpad');
 
   const COLS = 20, ROWS = 20;
-  let CELL = 20;
+  let CELL = 20, viewSize = 400;
 
-  let snake, dir, nextDir, food, score, best, running, paused, timer, particles, currentInterval;
+  // 游戏状态
+  let snake, dir, nextDir, food, score, best, running, paused, timer, currentInterval;
+  // 渲染状态
+  let particles = [], trail = [], stars = [], foodSpark = 0, shake = 0, deathFlash = 0;
+  let lastStepAt = 0, prevHead = null;
 
   best = +localStorage.getItem('snake_best') || 0;
   bestEl.textContent = best;
@@ -228,26 +232,43 @@
   function resize() {
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
-    const size = Math.max(1, Math.floor(Math.min(rect.width, rect.height)));
-    canvas.width = size * dpr;
-    canvas.height = size * dpr;
+    viewSize = Math.max(1, Math.floor(Math.min(rect.width, rect.height)));
+    canvas.width = viewSize * dpr;
+    canvas.height = viewSize * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    CELL = size / COLS;
-    draw();
+    CELL = viewSize / COLS;
   }
 
   function init() {
     snake = [
-      { x: 8, y: 10 },
-      { x: 7, y: 10 },
-      { x: 6, y: 10 }
+      { x: 8, y: 10 }, { x: 7, y: 10 }, { x: 6, y: 10 }
     ];
     dir = { x: 1, y: 0 };
     nextDir = { x: 1, y: 0 };
     score = 0;
     particles = [];
+    trail = [];
+    foodSpark = 0;
+    shake = 0;
+    deathFlash = 0;
+    prevHead = { x: snake[0].x, y: snake[0].y };
     scoreEl.textContent = 0;
     placeFood();
+    initStars();
+  }
+
+  function initStars() {
+    stars = [];
+    for (let i = 0; i < 28; i++) {
+      stars.push({
+        x: Math.random() * viewSize,
+        y: Math.random() * viewSize,
+        r: 0.4 + Math.random() * 1.1,
+        a: 0.1 + Math.random() * 0.35,
+        tw: Math.random() * Math.PI * 2,
+        sp: 0.01 + Math.random() * 0.02
+      });
+    }
   }
 
   function placeFood() {
@@ -261,6 +282,7 @@
   function step() {
     if (paused || !running) return;
     dir = nextDir;
+    prevHead = { x: snake[0].x, y: snake[0].y };
     const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
     if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) return gameOver();
     if (snake.some(s => s.x === head.x && s.y === head.y)) return gameOver();
@@ -268,21 +290,187 @@
     if (head.x === food.x && head.y === food.y) {
       score += 10;
       scoreEl.textContent = score;
-      spawnParticles(food.x, food.y);
+      spawnEatParticles(food.x, food.y);
+      shake = 5;
       placeFood();
     } else {
-      snake.pop();
+      const tail = snake.pop();
+      // 尾部拖尾粒子
+      if (Math.random() < 0.6) {
+        trail.push({
+          x: tail.x * CELL + CELL / 2,
+          y: tail.y * CELL + CELL / 2,
+          life: 1
+        });
+      }
     }
-    draw();
+    lastStepAt = performance.now();
   }
 
-  function spawnParticles(gx, gy) {
+  function spawnEatParticles(gx, gy) {
     const cx = gx * CELL + CELL / 2;
     const cy = gy * CELL + CELL / 2;
-    for (let i = 0; i < 14; i++) {
+    const colors = ['#fbbf24', '#fde68a', '#f59e0b', '#4ade80', '#22d3ee'];
+    for (let i = 0; i < 22; i++) {
       const a = Math.random() * Math.PI * 2;
-      const sp = 1 + Math.random() * 3;
-      particles.push({ x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1 });
+      const sp = 1.5 + Math.random() * 4;
+      particles.push({
+        x: cx, y: cy,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp,
+        life: 1,
+        size: 2 + Math.random() * 3,
+        color: colors[(Math.random() * colors.length) | 0],
+        spark: Math.random() < 0.3
+      });
+    }
+    // 环形冲击
+    for (let i = 0; i < 18; i++) {
+      const a = (i / 18) * Math.PI * 2;
+      particles.push({
+        x: cx, y: cy,
+        vx: Math.cos(a) * 2.5,
+        vy: Math.sin(a) * 2.5,
+        life: 0.7,
+        size: 1.8,
+        color: '#fde68a',
+        spark: true
+      });
+    }
+  }
+
+  function gameOver() {
+    running = false;
+    clearInterval(timer);
+    shake = 14;
+    deathFlash = 1;
+    // 死亡爆裂粒子
+    const h = snake[0];
+    const cx = h.x * CELL + CELL / 2;
+    const cy = h.y * CELL + CELL / 2;
+    for (let i = 0; i < 40; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 1 + Math.random() * 5;
+      particles.push({
+        x: cx, y: cy,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp,
+        life: 1,
+        size: 2 + Math.random() * 3,
+        color: ['#f87171', '#fbbf24', '#4ade80'][(Math.random() * 3) | 0],
+        spark: true
+      });
+    }
+    if (score > best) {
+      best = score;
+      localStorage.setItem('snake_best', best);
+      bestEl.textContent = best;
+    }
+    // 延迟显示结束面板，让死亡动画播完
+    setTimeout(function () {
+      overlay.classList.add('over');
+      overlay.classList.remove('hidden');
+      overlay.innerHTML =
+        '<h2>游戏结束</h2>' +
+        '<p class="final">本局得分 ' + score + '</p>' +
+        '<p>最高分 ' + best + '</p>' +
+        '<button class="btn" id="restartBtn">再 来 一 局</button>';
+      document.getElementById('restartBtn').addEventListener('click', start);
+    }, 650);
+  }
+
+  // ===== 渲染 =====
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  function drawBackground(t) {
+    // 底色 + 暗角径向
+    ctx.fillStyle = '#070b16';
+    ctx.fillRect(0, 0, viewSize, viewSize);
+    const vg = ctx.createRadialGradient(viewSize / 2, viewSize / 2, viewSize * 0.15, viewSize / 2, viewSize / 2, viewSize * 0.75);
+    vg.addColorStop(0, 'rgba(30, 41, 59, 0.5)');
+    vg.addColorStop(1, 'rgba(2, 6, 23, 0.85)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, viewSize, viewSize);
+
+    // 星点（呼吸闪烁）
+    for (let i = 0; i < stars.length; i++) {
+      const s = stars[i];
+      s.tw += s.sp;
+      const a = s.a + Math.sin(s.tw) * 0.18;
+      ctx.fillStyle = 'rgba(148, 163, 184, ' + Math.max(0, a) + ')';
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 网格（呼吸亮度）
+    const galpha = 0.035 + Math.sin(t * 0.0008) * 0.015;
+    ctx.strokeStyle = 'rgba(99, 102, 241, ' + galpha + ')';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= COLS; i++) {
+      ctx.beginPath(); ctx.moveTo(i * CELL, 0); ctx.lineTo(i * CELL, viewSize); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, i * CELL); ctx.lineTo(viewSize, i * CELL); ctx.stroke();
+    }
+  }
+
+  function drawFood(t) {
+    const fx = food.x * CELL + CELL / 2;
+    const fy = food.y * CELL + CELL / 2;
+    const pulse = 0.5 + Math.sin(t * 0.006) * 0.5; // 0..1
+    const baseR = Math.max(3, CELL / 2 - 2);
+
+    // 多层外光晕
+    for (let layer = 3; layer >= 1; layer--) {
+      const rad = baseR * (2 + layer * 1.2) + pulse * 4;
+      const g = ctx.createRadialGradient(fx, fy, 0, fx, fy, rad);
+      g.addColorStop(0, 'rgba(251, 191, 36, ' + (0.18 + pulse * 0.15) + ')');
+      g.addColorStop(1, 'rgba(251, 191, 36, 0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(fx, fy, rad, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 旋转光环
+    ctx.save();
+    ctx.translate(fx, fy);
+    ctx.rotate(t * 0.002);
+    ctx.strokeStyle = 'rgba(251, 191, 36, ' + (0.4 + pulse * 0.3) + ')';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 6]);
+    ctx.beginPath();
+    ctx.arc(0, 0, baseR + 4 + pulse * 2, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    // 食物主体（脉动）
+    const r = baseR * (0.92 + pulse * 0.12);
+    const grad = ctx.createRadialGradient(fx - r * 0.3, fy - r * 0.3, 0, fx, fy, r);
+    grad.addColorStop(0, '#fef3c7');
+    grad.addColorStop(0.5, '#fbbf24');
+    grad.addColorStop(1, '#d97706');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(fx, fy, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 高光
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.beginPath();
+    ctx.arc(fx - r * 0.3, fy - r * 0.3, r * 0.25, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawTrail() {
+    for (let i = trail.length - 1; i >= 0; i--) {
+      const p = trail[i];
+      p.life -= 0.035;
+      if (p.life <= 0) { trail.splice(i, 1); continue; }
+      ctx.fillStyle = 'rgba(74, 222, 128, ' + (p.life * 0.35) + ')';
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, CELL * 0.3 * p.life, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 
@@ -290,13 +478,22 @@
     for (let i = particles.length - 1; i >= 0; i--) {
       const p = particles[i];
       p.x += p.vx; p.y += p.vy;
-      p.vx *= 0.92; p.vy *= 0.92;
-      p.life -= 0.04;
+      p.vx *= 0.93; p.vy *= 0.93;
+      p.life -= 0.022;
       if (p.life <= 0) { particles.splice(i, 1); continue; }
-      ctx.fillStyle = 'rgba(251, 191, 36, ' + p.life + ')';
+      const a = Math.max(0, p.life);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = p.color;
+      // spark 粒子带辉光
+      if (p.spark) {
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 6;
+      }
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 3 * p.life, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, p.size * a, 0, Math.PI * 2);
       ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
     }
   }
 
@@ -310,85 +507,133 @@
     ctx.closePath();
   }
 
-  function draw() {
-    const rect = canvas.getBoundingClientRect();
-    const size = Math.min(rect.width, rect.height);
-    ctx.clearRect(0, 0, size, size);
-    ctx.fillStyle = '#0a0e1a';
-    ctx.fillRect(0, 0, size, size);
+  // 计算移动插值进度（0..1），让蛇平滑滑入下一格
+  function moveProgress(now) {
+    if (!currentInterval) return 1;
+    const p = (now - lastStepAt) / currentInterval;
+    return Math.min(1, Math.max(0, p));
+  }
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
-    ctx.lineWidth = 1;
-    for (let i = 0; i <= COLS; i++) {
-      ctx.beginPath(); ctx.moveTo(i * CELL, 0); ctx.lineTo(i * CELL, size); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, i * CELL); ctx.lineTo(size, i * CELL); ctx.stroke();
-    }
+  function drawSnake(t) {
+    if (!snake) return;
+    const now = performance.now();
+    const prog = running && !paused ? moveProgress(now) : 1;
+    const pad = Math.max(1.5, CELL * 0.08);
+    const r = Math.max(3, CELL * 0.32);
 
-    // 食物
-    const fx = food.x * CELL + CELL / 2;
-    const fy = food.y * CELL + CELL / 2;
-    const glow = ctx.createRadialGradient(fx, fy, 0, fx, fy, CELL * 1.5);
-    glow.addColorStop(0, 'rgba(251, 191, 36, 0.6)');
-    glow.addColorStop(1, 'rgba(251, 191, 36, 0)');
-    ctx.fillStyle = glow;
-    ctx.fillRect(food.x * CELL - CELL, food.y * CELL - CELL, CELL * 3, CELL * 3);
-    ctx.fillStyle = '#fbbf24';
-    ctx.beginPath();
-    ctx.arc(fx, fy, Math.max(2, CELL / 2 - 3), 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#fde68a';
-    ctx.beginPath();
-    ctx.arc(fx - 2, fy - 2, Math.max(1, CELL / 5), 0, Math.PI * 2);
-    ctx.fill();
-
-    // 蛇
+    // 蛇身从尾到头绘制，颜色由暗到亮
     for (let i = snake.length - 1; i >= 0; i--) {
       const s = snake[i];
-      const t = i / snake.length;
-      const r = Math.round(74 + (34 - 74) * t);
-      const g = Math.round(222 + (211 - 222) * t);
-      const b = Math.round(128 + (238 - 128) * t);
-      ctx.fillStyle = 'rgb(' + r + ',' + g + ',' + b + ')';
-      roundRect(s.x * CELL + 1, s.y * CELL + 1, CELL - 2, CELL - 2, Math.max(2, CELL / 4));
+      let gx = s.x, gy = s.y;
+      // 头部插值平滑滑动
+      if (i === 0 && prevHead) {
+        gx = lerp(prevHead.x, s.x, prog);
+        gy = lerp(prevHead.y, s.y, prog);
+      } else if (i === snake.length - 1 && snake.length > 1) {
+        // 尾部从前一段位置滑出
+        const nxt = snake[i - 1];
+        gx = lerp(s.x, nxt.x, prog);
+        gy = lerp(s.y, nxt.y, prog);
+      }
+
+      const px = gx * CELL;
+      const py = gy * CELL;
+      const ratio = i / Math.max(1, snake.length - 1);
+      const fade = deathFlash > 0 && Math.floor(t / 60) % 2 === 0 ? 0.35 : 1;
+
+      // 外发光
+      ctx.shadowColor = 'rgba(74, 222, 128, 0.8)';
+      ctx.shadowBlur = i === 0 ? 18 : 10;
+
+      // 蛇身渐变
+      const g = ctx.createLinearGradient(px, py, px + CELL, py + CELL);
+      const hue = 145 + ratio * 30; // 绿到青
+      g.addColorStop(0, 'hsla(' + hue + ', 75%, ' + (60 - ratio * 25) + '%, ' + fade + ')');
+      g.addColorStop(1, 'hsla(' + (hue + 15) + ', 80%, ' + (45 - ratio * 20) + '%, ' + fade + ')');
+      ctx.fillStyle = g;
+      roundRect(px + pad, py + pad, CELL - pad * 2, CELL - pad * 2, r);
       ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // 顶部高光
+      ctx.globalAlpha = 0.25 * fade;
+      ctx.fillStyle = '#ffffff';
+      roundRect(px + pad + 1, py + pad + 1, CELL - pad * 2 - 2, (CELL - pad * 2) * 0.35, r * 0.6);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      // 蛇头：眼睛 + 脉动光晕
       if (i === 0) {
-        ctx.fillStyle = '#0a0e1a';
-        const ex = s.x * CELL + CELL / 2;
-        const ey = s.y * CELL + CELL / 2;
-        const off = CELL / 5;
-        let e1, e2;
-        if (dir.x === 1) { e1 = [ex + 2, ey - off]; e2 = [ex + 2, ey + off]; }
-        else if (dir.x === -1) { e1 = [ex - 2, ey - off]; e2 = [ex - 2, ey + off]; }
-        else if (dir.y === 1) { e1 = [ex - off, ey + 2]; e2 = [ex + off, ey + 2]; }
-        else { e1 = [ex - off, ey - 2]; e2 = [ex + off, ey - 2]; }
+        const ex = gx * CELL + CELL / 2;
+        const ey = gy * CELL + CELL / 2;
+        // 头部光晕
+        const hg = ctx.createRadialGradient(ex, ey, 0, ex, ey, CELL * 1.3);
+        hg.addColorStop(0, 'rgba(74, 222, 128, 0.4)');
+        hg.addColorStop(1, 'rgba(74, 222, 128, 0)');
+        ctx.fillStyle = hg;
         ctx.beginPath();
-        ctx.arc(e1[0], e1[1], Math.max(1, CELL / 9), 0, Math.PI * 2);
-        ctx.arc(e2[0], e2[1], Math.max(1, CELL / 9), 0, Math.PI * 2);
+        ctx.arc(ex, ey, CELL * 1.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 眼睛
+        const off = CELL * 0.22;
+        const er = Math.max(1.2, CELL * 0.11);
+        let e1, e2;
+        if (dir.x === 1) { e1 = [ex + off, ey - off]; e2 = [ex + off, ey + off]; }
+        else if (dir.x === -1) { e1 = [ex - off, ey - off]; e2 = [ex - off, ey + off]; }
+        else if (dir.y === 1) { e1 = [ex - off, ey + off]; e2 = [ex + off, ey + off]; }
+        else { e1 = [ex - off, ey - off]; e2 = [ex + off, ey - off]; }
+        ctx.fillStyle = '#0a0e1a';
+        ctx.beginPath();
+        ctx.arc(e1[0], e1[1], er, 0, Math.PI * 2);
+        ctx.arc(e2[0], e2[1], er, 0, Math.PI * 2);
+        ctx.fill();
+        // 眼神高光
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(e1[0] + 0.6, e1[1] - 0.6, er * 0.4, 0, Math.PI * 2);
+        ctx.arc(e2[0] + 0.6, e2[1] - 0.6, er * 0.4, 0, Math.PI * 2);
         ctx.fill();
       }
     }
-
-    drawParticles();
   }
 
-  function gameOver() {
-    running = false;
-    clearInterval(timer);
-    if (score > best) {
-      best = score;
-      localStorage.setItem('snake_best', best);
-      bestEl.textContent = best;
+  function drawPauseMask() {
+    if (!paused || !running) return;
+    ctx.fillStyle = 'rgba(10, 14, 26, 0.55)';
+    ctx.fillRect(0, 0, viewSize, viewSize);
+    ctx.fillStyle = '#e6e6e6';
+    ctx.font = 'bold ' + Math.floor(viewSize * 0.09) + 'px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('暂 停', viewSize / 2, viewSize / 2);
+  }
+
+  function render(t) {
+    // 屏幕震动
+    let ox = 0, oy = 0;
+    if (shake > 0) {
+      ox = (Math.random() - 0.5) * shake;
+      oy = (Math.random() - 0.5) * shake;
+      shake *= 0.86;
+      if (shake < 0.3) shake = 0;
     }
-    overlay.classList.add('over');
-    overlay.classList.remove('hidden');
-    overlay.innerHTML =
-      '<h2>游戏结束</h2>' +
-      '<p class="final">本局得分 ' + score + '</p>' +
-      '<p>最高分 ' + best + '</p>' +
-      '<button class="btn" id="restartBtn">再 来 一 局</button>';
-    document.getElementById('restartBtn').addEventListener('click', start);
+    if (deathFlash > 0) deathFlash = Math.max(0, deathFlash - 0.015);
+
+    ctx.save();
+    ctx.translate(ox, oy);
+    drawBackground(t);
+    drawTrail();
+    drawFood(t);
+    drawSnake(t);
+    drawParticles();
+    drawPauseMask();
+    ctx.restore();
+
+    requestAnimationFrame(render);
   }
 
+  // ===== 游戏循环 =====
   function loopStep() {
     step();
     const speed = Math.max(70, 150 - Math.floor(score / 50) * 10);
@@ -401,13 +646,13 @@
 
   function start() {
     init();
+    resize();
     running = true;
     paused = false;
     currentInterval = 150;
+    lastStepAt = performance.now();
     overlay.classList.remove('over');
     overlay.classList.add('hidden');
-    resize();
-    draw();
     clearInterval(timer);
     timer = setInterval(loopStep, currentInterval);
   }
@@ -425,7 +670,7 @@
     else if (name === 'right') setDir(1, 0);
   }
 
-  // D-pad：触摸即响应，支持手指滑动连续触发
+  // D-pad：触摸即响应
   dpad.addEventListener('touchstart', function (e) {
     e.preventDefault();
     const t = e.target.closest('button[data-dir]');
@@ -453,7 +698,6 @@
     ts = null;
   }, { passive: true });
 
-  // 键盘（桌面兼容）
   document.addEventListener('keydown', function (e) {
     const k = e.key.toLowerCase();
     if (k === 'arrowup' || k === 'w') { e.preventDefault(); dirByName('up'); }
@@ -466,12 +710,12 @@
   pauseBtn.addEventListener('click', function () { if (running) paused = !paused; });
   startBtn.addEventListener('click', start);
 
-  window.addEventListener('resize', resize);
-  window.addEventListener('orientationchange', function () { setTimeout(resize, 200); });
+  window.addEventListener('resize', function () { resize(); initStars(); });
+  window.addEventListener('orientationchange', function () { setTimeout(function () { resize(); initStars(); }, 200); });
 
   init();
   resize();
-  draw();
+  requestAnimationFrame(render);
 })();
 </script>
 </body>
