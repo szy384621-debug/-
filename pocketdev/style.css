@@ -18,12 +18,14 @@ body {
   background: #fff;
   color: var(--text);
   overflow: hidden;
+  -webkit-text-size-adjust: 100%;
 }
 
 .app {
   display: grid;
   grid-template-columns: 1fr 1.35fr 1fr;
   height: 100vh;
+  height: 100dvh;
 }
 
 /* ---------- 通用面板 ---------- */
@@ -147,13 +149,21 @@ body {
   font-family: var(--mono); font-size: 13px; line-height: 1.6;
   padding: 12px; background: #fbfbfc; border-radius: 10px; color: #24292f;
   white-space: pre; overflow: auto;
+  -webkit-overflow-scrolling: touch;
 }
-.preview-wrap { position: absolute; inset: 0; display: flex; justify-content: center; background: #ececf0; padding: 12px; }
+.preview-wrap {
+  position: absolute; inset: 0; display: flex; justify-content: center; align-items: center;
+  background: #ececf0; padding: 12px; overflow: hidden;
+}
 .hidden { display: none !important; }
-#previewFrame { border: none; background: #fff; border-radius: 14px; box-shadow: 0 4px 24px rgba(0,0,0,.1); width: 100%; height: 100%; }
-#previewFrame.preview-phone { max-width: 390px; }
-#previewFrame.preview-fold { max-width: 640px; }
-#previewFrame.preview-desktop { max-width: 100%; }
+#previewFrame {
+  display: block; border: none; border: 0; background: #fff; border-radius: 14px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.12); width: 100%; height: 100%;
+  max-width: 100%;
+}
+#previewFrame.preview-phone { max-width: 420px; max-height: 860px; }
+#previewFrame.preview-fold { max-width: 680px; max-height: 860px; }
+#previewFrame.preview-desktop { max-width: 100%; max-height: 100%; }
 
 /* ---------- 右栏：AI 助手 ---------- */
 .assistant-body { flex: 1; overflow-y: auto; padding: 16px 14px; }
@@ -206,16 +216,48 @@ body {
 .mobile-nav { display: none; }
 
 @media (max-width: 900px) {
-  .app { grid-template-columns: 1fr; height: calc(100vh - 56px); }
+  .app {
+    grid-template-columns: 1fr;
+    height: calc(100vh - 56px);
+    height: calc(100dvh - 56px);
+  }
   .panel { display: none; border-right: none; }
   .panel.mobile-active { display: flex; }
   .mobile-nav {
     display: flex; height: 56px; border-top: 1px solid var(--border);
     position: fixed; bottom: 0; left: 0; right: 0; background: #fff; z-index: 10;
+    padding-bottom: env(safe-area-inset-bottom);
+    box-sizing: content-box;
   }
   .mnav-btn {
     flex: 1; border: none; background: none; font-size: 13px; cursor: pointer;
     color: var(--text-2);
   }
   .mnav-btn.active { color: var(--blue); font-weight: 600; }
+
+  /* 窄屏工具栏：引擎标签换行，避免挤压 */
+  .engine-tag {
+    order: 3; width: 100%; margin-left: 0; text-align: right;
+    font-size: 11.5px; padding-right: 2px;
+  }
+  .editor-toolbar { gap: 6px; padding: 10px 12px 6px; }
+
+  /* 对话输入栏留出安全区 */
+  .panel-chat .chat-input-bar,
+  .panel-assistant .chat-input-bar {
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  }
+}
+
+/* ---------- 超窄屏（手机竖屏）优化 ---------- */
+@media (max-width: 480px) {
+  .panel-header { padding: 9px 12px; gap: 6px; }
+  .header-title h1 { font-size: 16px; }
+  .check-btn { width: 34px; height: 34px; font-size: 17px; }
+  .round-btn { width: 34px; height: 34px; }
+  .send-btn { width: 38px; height: 38px; }
+  .toggle-btn { padding: 7px 14px; font-size: 13.5px; }
+  .chat-body { padding: 14px 12px; }
+  .welcome { margin-top: 2vh; }
+  .msg { font-size: 13.5px; }
 }
