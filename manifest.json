@@ -1,0 +1,18 @@
+{
+  "name": "贪吃蛇",
+  "short_name": "贪吃蛇",
+  "description": "经典贪吃蛇小游戏 - 滑动或方向键控制",
+  "start_url": "./snake.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0e1a",
+  "theme_color": "#0f3460",
+  "icons": [
+    {
+      "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='96' fill='%230f3460'/><g fill='%234ade80'><rect x='96' y='224' width='64' height='64' rx='12'/><rect x='160' y='224' width='64' height='64' rx='12'/><rect x='224' y='224' width='64' height='64' rx='12'/><rect x='288' y='224' width='64' height='64' rx='12'/><rect x='288' y='160' width='64' height='64' rx='12'/></g><circle cx='320' cy='192' r='6' fill='%230a0e1a'/><circle cx='336' cy='192' r='6' fill='%230a0e1a'/><circle cx='320' cy='320' r='28' fill='%23fbbf24'/></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
