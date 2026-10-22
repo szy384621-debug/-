@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#2f6bff">
 <title>PocketDev - 手机全栈开发平台</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -20,12 +22,12 @@
   <!-- ========== 左栏：对话开发 ========== -->
   <section class="panel panel-chat" id="panel-chat">
     <header class="panel-header">
-      <button class="icon-btn" title="返回">←</button>
+      <button class="icon-btn" id="btnBack" title="返回">←</button>
       <div class="header-title">
         <h1>对话开发</h1>
         <p>端侧 AI · 本地离线优先</p>
       </div>
-      <button class="icon-btn" title="更多">⋮</button>
+      <button class="icon-btn" id="btnChatMore" title="更多">⋮</button>
     </header>
 
     <div class="chat-body" id="chatBody">
@@ -36,14 +38,16 @@
           <p class="try-title">试着说：</p>
           <button class="try-item" data-prompt="做一个带登录和首页的商城">「做一个带登录和首页的商城」</button>
           <button class="try-item" data-prompt="帮我做一个番茄钟">「帮我做一个番茄钟」</button>
+          <button class="try-item" data-prompt="做一个待办清单">「做一个待办清单」</button>
+          <button class="try-item" data-prompt="做一个贪吃蛇游戏">「做一个贪吃蛇游戏」</button>
         </div>
       </div>
     </div>
 
     <footer class="chat-input-bar">
-      <button class="round-btn" title="文本设置">Aa</button>
-      <button class="round-btn" title="图片">🖼️</button>
-      <button class="round-btn" title="搜索">🔍</button>
+      <button class="round-btn" id="btnTextSettings" title="文本设置">Aa</button>
+      <button class="round-btn" id="btnImage" title="图片">🖼️</button>
+      <button class="round-btn" id="btnSearch" title="搜索">🔍</button>
       <input type="text" id="chatInput" placeholder="描述你想做…" autocomplete="off">
       <button class="send-btn" id="chatSend" title="发送">➤</button>
     </footer>
@@ -59,8 +63,9 @@
       <div class="header-actions">
         <button class="icon-btn" id="btnRefresh" title="刷新预览">↻</button>
         <button class="icon-btn" id="btnUndo" title="撤销">↺</button>
+        <button class="icon-btn" id="btnRedo" title="重做">↻</button>
         <button class="check-btn" id="btnSave" title="保存">✓</button>
-        <button class="icon-btn" title="更多">⋮</button>
+        <button class="icon-btn" id="btnEditorMore" title="更多">⋮</button>
       </div>
     </header>
 
@@ -74,7 +79,7 @@
         <button class="icon-btn device" data-device="fold" title="折叠屏">↔️</button>
         <button class="icon-btn device" data-device="desktop" title="桌面">🖥️</button>
       </div>
-      <span class="engine-tag">当前引擎：端侧 AI · GPU Vulkan</span>
+      <span class="engine-tag" id="engineTag">当前引擎：端侧 AI · GPU Vulkan</span>
     </div>
 
     <div class="file-tabs" id="fileTabs"></div>
@@ -82,10 +87,10 @@
     <div class="editor-body">
       <div class="code-wrap" id="codeWrap">
         <div class="line-nums" id="lineNums">1</div>
-        <textarea id="codeEditor" spellcheck="false"></textarea>
+        <textarea id="codeEditor" spellcheck="false" autocorrect="off" autocapitalize="off"></textarea>
       </div>
       <div class="preview-wrap hidden" id="previewWrap">
-        <iframe id="previewFrame" class="preview-phone" sandbox="allow-scripts"></iframe>
+        <iframe id="previewFrame" class="preview-phone" sandbox="allow-scripts allow-same-origin"></iframe>
       </div>
     </div>
   </section>
@@ -93,12 +98,12 @@
   <!-- ========== 右栏：AI 助手 ========== -->
   <section class="panel panel-assistant" id="panel-assistant">
     <header class="panel-header">
-      <button class="icon-btn" title="菜单">☰</button>
+      <button class="icon-btn" id="btnAssistantMenu" title="菜单">☰</button>
       <div class="header-title">
         <h1>AI 助手</h1>
-        <p><span id="tokenCount">0</span> tokens · 打包 <span id="buildCount">4</span> 次 · 已省 <span id="savedCount">0</span></p>
+        <p><span id="tokenCount">0</span> tokens · 打包 <span id="buildCount">4</span> 次 · 已省 <span id="savedCount">0</span> 元</p>
       </div>
-      <button class="icon-btn" title="更多">⋮</button>
+      <button class="icon-btn" id="btnAssistantMore" title="更多">⋮</button>
     </header>
 
     <div class="assistant-body">
@@ -139,6 +144,17 @@
           </div>
         </div>
         <div class="progress hidden" id="buildProgress"><div class="progress-inner" id="buildInner"></div></div>
+        <button class="outline-btn hidden" id="downloadApkBtn" style="margin-top:12px;">📥 下载 APK</button>
+      </div>
+
+      <div class="card">
+        <div class="card-row">
+          <div class="card-text">
+            <h3>📤 导出项目</h3>
+            <p>将当前所有文件打包下载为 ZIP</p>
+          </div>
+        </div>
+        <button class="outline-btn" id="exportBtn">导出 ZIP 压缩包</button>
       </div>
     </div>
 
