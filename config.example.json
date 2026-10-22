@@ -1,0 +1,16 @@
+{
+  "urls": [
+    "https://example.com/chinese/sentences?page={page}"
+  ],
+  "pages": 2,
+  "output": "output/sentences.json",
+  "timeout": 15,
+  "delay": 1.0,
+  "selectors": {
+    "item": ".sentence-list li",
+    "sentence": ".zh",
+    "pinyin": ".pinyin",
+    "translation": ".en",
+    "source": ".from"
+  }
+}
